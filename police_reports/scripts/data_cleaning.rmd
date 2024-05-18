@@ -50,14 +50,19 @@ table(db_call_dat$Beat)
 
 # Can also drop Arrived Time (as non-arrived calls are blank, and we care about the date of the call over a long timeframe, not the response time)
 
-# Also safe to drop CAD Event Number, as that's used for police ID info, and irrelevant to us
 db_call_dat <- db_call_dat %>%
-  select(-c("Precinct", "Sector", "Beat", "CAD.Event.Number", "Arrived.Time"))
+  select(-c("Precinct", "Sector", "Beat", "Arrived.Time"))
 ```
 
 # Explore and clean data
 
 ```{r}
+# A small thing I noticed, there's a fair amount of untidy data, especially in the Final.Call.Type column.
+# Using untidy data, SPD! For shame!!! 
+# Let's clean that up a touch so R doesn't stumble
+db_call_dat$Final.Call.Type <- str_remove(db_call_dat$Final.Call.Type, "--")
+
+
 # Look at different reasons calls were made
 table(db_call_dat$Initial.Call.Type)
 
@@ -65,7 +70,7 @@ table(db_call_dat$Initial.Call.Type)
 # Let's remove all such non-applicable entries
 
 # Remove rows with the following response types
-test <- db_call_dat %>%
+db_call_dat <- db_call_dat %>%
   filter(Initial.Call.Type != "ALARM - COMM, SILENT/AUD BURG (INCL BANKS)") %>%         # burglary alarm
   filter(Initial.Call.Type != "ALARM - RESIDENTIAL - BURGLARY, SILENT/AUDIBLE") %>%     # burglary alarm
   filter(Initial.Call.Type != "ASLT - DV CRITICAL") %>%                                 # domestic violence
@@ -84,7 +89,6 @@ test <- db_call_dat %>%
   filter(Initial.Call.Type != "HARBOR - WATER DEBRIS, NAVIGATIONAL HAZARDS") %>%        # water debris 
   filter(Initial.Call.Type != "HARBOR - WATER EMERGENCIES") %>%                         # water emergency
   filter(Initial.Call.Type != "MVC - HIT AND RUN") %>%                                  # hit and run
-  filter(Initial.Call.Type != "OBS - DOA - CASUALTY, DEAD BODY") %>%                    # dead body
   filter(Initial.Call.Type != "OBS - MVC - NON INJURY, BLOCKING") %>%                   # motor vehicle collision
   filter(Initial.Call.Type != "OBS - MVC - UNK INJURIES") %>%                           # motor vehicle collision
   filter(Initial.Call.Type != "OBS - MVC - WITH INJURIES (INCLUDES HIT AND RUN)") %>%   # motor vehicle collision
@@ -98,28 +102,48 @@ test <- db_call_dat %>%
   filter(Initial.Call.Type != "SHOTS HEARD - IN PROGRESS") %>%                          # gun violence
   filter(Initial.Call.Type != "SUICIDE - CRITICAL") %>%                                 # suicide
   filter(Initial.Call.Type != "SUICIDE - SUICIDAL PERSON AND ATTEMPTS") %>%             # suicide
-  filter(Initial.Call.Type != "THEFT (DOES NOT INCLUDE SHOPLIFT OR SVCS)") %>%          # theft
   filter(Initial.Call.Type != "TRAFFIC - MOVING VIOLATION") %>%                         # traffic stop
   filter(Initial.Call.Type != "TRAFFIC - ROAD RAGE") %>%                                # road rage
   filter(Initial.Call.Type != "TRAFFIC STOP - OFFICER INITIATED ONVIEW") %>%            # traffic stop
   filter(Initial.Call.Type != "TREES DOWN, OBSTRUCTING PUBLIC PROP (NO HAZ)") %>%       # fallen trees
-  filter(Initial.Call.Type != "TRESPASS") %>%                                           # trespass
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  filter(Initial.Call.Type != "") %>%
-  
+  filter(Initial.Call.Type != "TRU - FOLLOW UP") %>%                                    # follow up
+  filter(Initial.Call.Type != "TRU - FRAUD") %>%                                        # fraud
+  filter(Initial.Call.Type != "TRU - MVC - HIT AND RUN") %>%                            # motor vehicle collision
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - LANDLINE (INCLUDES OPEN LINE)") %>%  # one entry, residential alarm
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - WRLS PHNS (INCL OPEN LINE)") %>%     # unknown complaint
+  filter(Initial.Call.Type != "UNKNOWN - COMPLAINT OF UNKNOWN NATURE")                  # two, both were DV
 
-  
+# Alright, we've got 91 reports that could potentially have something vaguely to do with DB, at least according to the initial report! Let's look at the final call reports to see if we can rule anything out
 
-  
+table(db_call_dat$Final.Call.Type)
 
+# Remove ones that can't be DB
+db_call_dat <- db_call_dat %>%
+  filter(Final.Call.Type != "BURGLARY - RESIDENTIAL OCCUPIED") %>%              # burglary, was called for disturbance
+  filter(Final.Call.Type != "BURGLARY - UNOCC STRUC ON RESN PROP") %>%          # burglary, was called for disturbance
+  filter(Final.Call.Type != "CASUALTY,NON-TRAF,NON-CRIM - NON-DRUG RELATED")    # dead body, non-drug-related
+
+# 88 remaining
+
+# Let's also do a quick check of event resolution
+
+table(db_call_dat$Event.Clearance.Description)
+
+# Remove false report
+db_call_dat <- db_call_dat %>%
+  filter(Final.Call.Type != "FALSE COMPLAINT/UNFOUNDED")
+
+# 87 remaining 
+
+# Write these out
+write.csv(db_call_dat, file = "../output/potential_db_calls.csv", row.names = FALSE)
+```
+
+Cool, we've got a list of incidents that could have potentially been at DB
+
+Let's sort these into a few neater categories - theft, indecent exposure, disturbance, drugs, traffic and parking, suspicious people 
+
+```{r}
+# Add new column
 ```
 
