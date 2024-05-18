@@ -32,7 +32,94 @@ lapply(list.of.packages, FUN = function(X) {
 ```
 
 
+# Download data, remove unnecessary columns
 ```{r}
-call_dat <- read.csv("../data/call_data.csv")
+# Download data
+db_call_dat <- read.csv("../data/db_call_data.csv")
+
+# Examine some columns to see if we can drop
+
+table(db_call_dat$Precinct)
+# Precinct: all are east, safe to drop
+
+table(db_call_dat$Sector)
+# Sector: all are Charlie, safe to drop
+
+table(db_call_dat$Beat)
+# Beat: all are C3, safe to drop
+
+# Can also drop Arrived Time (as non-arrived calls are blank, and we care about the date of the call over a long timeframe, not the response time)
+
+# Also safe to drop CAD Event Number, as that's used for police ID info, and irrelevant to us
+db_call_dat <- db_call_dat %>%
+  select(-c("Precinct", "Sector", "Beat", "CAD.Event.Number", "Arrived.Time"))
+```
+
+# Explore and clean data
+
+```{r}
+# Look at different reasons calls were made
+table(db_call_dat$Initial.Call.Type)
+
+# Alright, lots of these are non-applicable to any disorder or misconduct at Denny-Blaine.
+# Let's remove all such non-applicable entries
+
+# Remove rows with the following response types
+test <- db_call_dat %>%
+  filter(Initial.Call.Type != "ALARM - COMM, SILENT/AUD BURG (INCL BANKS)") %>%         # burglary alarm
+  filter(Initial.Call.Type != "ALARM - RESIDENTIAL - BURGLARY, SILENT/AUDIBLE") %>%     # burglary alarm
+  filter(Initial.Call.Type != "ASLT - DV CRITICAL") %>%                                 # domestic violence
+  filter(Initial.Call.Type != "AUTO - THEFT/LOSS OF PLATES") %>%                        # auto theft
+  filter(Initial.Call.Type != "AUTO RECOVERY") %>%                                      # auto recovery
+  filter(Initial.Call.Type != "AUTO THEFT - VEH THEFT OR THEFT AND RECOVERY") %>%       # auto theft/recovery
+  filter(Initial.Call.Type != "BURG - OCCUPIED RESD") %>%                               # burglary
+  filter(Initial.Call.Type != "BURG - RESD (INCL UNOCC STRUCTURES ON PROP)") %>%        # burglary
+  filter(Initial.Call.Type != "CHILD - CRITICAL ABAND, ABUSE, MOLEST, NEGLECT") %>%     # child abuse
+  filter(Initial.Call.Type != "DISTURBANCE - DV - NO ASLT") %>%                         # domestic violence
+  filter(Initial.Call.Type != "DISTURBANCE - DV CRITICAL") %>%                          # domestic violence
+  filter(Initial.Call.Type != "DOWN - CHECK FOR DOWN PERSON") %>%                       # wellness check
+  filter(Initial.Call.Type != "DUI - DRIVING UNDER INFLUENCE") %>%                      # DUI
+  filter(Initial.Call.Type != "FOLLOW UP") %>%                                          # follow up on incident
+  filter(Initial.Call.Type != "FRAUD") %>%                                              # fraud
+  filter(Initial.Call.Type != "HARBOR - WATER DEBRIS, NAVIGATIONAL HAZARDS") %>%        # water debris 
+  filter(Initial.Call.Type != "HARBOR - WATER EMERGENCIES") %>%                         # water emergency
+  filter(Initial.Call.Type != "MVC - HIT AND RUN") %>%                                  # hit and run
+  filter(Initial.Call.Type != "OBS - DOA - CASUALTY, DEAD BODY") %>%                    # dead body
+  filter(Initial.Call.Type != "OBS - MVC - NON INJURY, BLOCKING") %>%                   # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - MVC - UNK INJURIES") %>%                           # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - MVC - WITH INJURIES (INCLUDES HIT AND RUN)") %>%   # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - REPORT, NON INJ/NON BLKG OR AFTER FACT INJ") %>%   # one entry - checked, was MVC
+  filter(Initial.Call.Type != "ORDER  - SERVICE OF DV COURT ORDER") %>%                 # serving court order
+  filter(Initial.Call.Type != "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY") %>%       # premise check
+  filter(Initial.Call.Type != "PROPERTY - DAMAGE (GUN RELATED)") %>%                    # gun related property damage
+  filter(Initial.Call.Type != "SERVICE - WELFARE CHECK") %>%                            # welfare check
+  filter(Initial.Call.Type != "SFD - ASSIST ON CRITICAL FIRE OR MEDIC RESPONSE") %>%    # fire or medic response
+  filter(Initial.Call.Type != "SHOTS HEARD - DELAY") %>%                                # gun violence
+  filter(Initial.Call.Type != "SHOTS HEARD - IN PROGRESS") %>%                          # gun violence
+  filter(Initial.Call.Type != "SUICIDE - CRITICAL") %>%                                 # suicide
+  filter(Initial.Call.Type != "SUICIDE - SUICIDAL PERSON AND ATTEMPTS") %>%             # suicide
+  filter(Initial.Call.Type != "THEFT (DOES NOT INCLUDE SHOPLIFT OR SVCS)") %>%          # theft
+  filter(Initial.Call.Type != "TRAFFIC - MOVING VIOLATION") %>%                         # traffic stop
+  filter(Initial.Call.Type != "TRAFFIC - ROAD RAGE") %>%                                # road rage
+  filter(Initial.Call.Type != "TRAFFIC STOP - OFFICER INITIATED ONVIEW") %>%            # traffic stop
+  filter(Initial.Call.Type != "TREES DOWN, OBSTRUCTING PUBLIC PROP (NO HAZ)") %>%       # fallen trees
+  filter(Initial.Call.Type != "TRESPASS") %>%                                           # trespass
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  filter(Initial.Call.Type != "") %>%
+  
+
+  
+
+  
+
 ```
 
