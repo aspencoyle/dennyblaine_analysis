@@ -1,0 +1,38 @@
+---
+title: "data_cleaning"
+author: "Aspen Coyle"
+date: "2024-05-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Info
+
+This script cleans and organizes police data on reports from Denny-Blaine and other beaches, with the goal of examining police response frequency over time
+
+#### Load libraries, and install if necessary
+
+```{r}
+# Add all required libraries here
+list.of.packages <- c("tidyverse", "lubridate")
+# Get names of all required packages that aren't installed
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+# Install all new packages
+if(length(new.packages)) install.packages(new.packages)
+
+
+# Load all required libraries
+lapply(list.of.packages, FUN = function(X) {
+  do.call("require", list(X))
+})
+
+```
+
+
+```{r}
+call_dat <- read.csv("../data/call_data.csv")
+```
+
