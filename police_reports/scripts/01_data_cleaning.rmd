@@ -135,7 +135,7 @@ db_call_dat <- db_call_dat %>%
 
 Cool, we've got a list of incidents that could have potentially been at DB
 
-Let's sort these into a few neater categories - property damage/theft, lewd conduct, disturbance, drugs, traffic/parking, suspicious people, and other
+Let's sort these into a few neater categories - property damage/theft, lewd conduct, disturbance, drugs, traffic/parking, suspicious people
 
 # Organizing into broad categories
 
@@ -196,6 +196,8 @@ str(db_call_dat$Incident.Date)
 
 # Write everything out
 write.csv(db_call_dat, file = "../output/potential_db_calls.csv", row.names = FALSE)
-
 ```
+Alright, next step: creating visualizations looking at trends by year!
+
+
 
