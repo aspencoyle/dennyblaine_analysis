@@ -1,0 +1,76 @@
+---
+title: "Data Visualization"
+author: "Aspen Coyle"
+date: "2024-05-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script visualizes the data cleaned in the previous script
+
+#### Load libraries, and install if necessary
+
+```{r}
+# Add all required libraries here
+list.of.packages <- c("tidyverse", "lubridate")
+# Get names of all required packages that aren't installed
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+# Install all new packages
+if(length(new.packages)) install.packages(new.packages)
+
+
+# Load all required libraries
+lapply(list.of.packages, FUN = function(X) {
+  do.call("require", list(X))
+})
+```
+
+
+# Visualizations
+
+```{r}
+# Read in data
+db_call_dat <- read.csv(file = "../output/potential_db_calls_2010-2023.csv")
+
+# Create new Year column
+db_call_dat$Year <- isoyear(db_call_dat$Incident.Date)
+
+# Create line plot of broad call type vs. year
+
+# Mutate data
+graph_dat <- db_call_dat %>%
+  group_by(broad_category, Year, .drop = FALSE) %>%
+  summarise(n = length(broad_category))
+
+# Convert to tibble
+graph_dat <- as_tibble(graph_dat)
+
+# Add in zeros
+graph_dat <- graph_dat %>% 
+  complete(broad_category, Year, fill = list(n = 0))
+
+# Create graph
+graph_dat %>%
+  ggplot(aes(x = Year, y = n, group = broad_category, color = broad_category)) +
+  geom_line(size = 1) +
+  ylim(0, 8) +
+  labs(y = "Number of Calls", col = "Call Type") +
+  scale_color_discrete(labels = c("Disturbance", "Drugs", "Lewd Conduct", "Property Damage", "Suspicious Person", "Traffic and Parking")) +
+  ggtitle("Calls to SPD Potentially Related to Denny-Blaine")
+  
+# Save graph
+ggsave(filename = "../graphs/potential_DB_calls.png", plot = last_plot(),
+       width = 10, height = 7, units = "in")
+
+graph_dat %>%
+  ggplot(aes(fill = broad_category, y = n, x = Year)) +
+  geom_bar(position = "dodge", stat = "identity")
+
+ggplot(data, aes(fill=condition, y=value, x=specie)) + 
+    geom_bar(position="dodge", stat="identity")
+
+
+```
