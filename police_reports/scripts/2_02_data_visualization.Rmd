@@ -119,7 +119,7 @@ graph <- graph_dat %>%
         strip.text.x = element_text(size = 8)) +
   facet_wrap(~broad_category, scales = "fixed", labeller = labeller(broad_category = labels)) +
   ggtitle("Calls to SPD Potentially Related to Denny-Blaine (2010-2023) Per 100,000 Seattle Residents") +
-  ylab("Number of Calls")
+  ylab("Number of Calls Per 100,000 Seattleites")
 
 ggsave(filename = "../graphs/DennyBlaine/pop_normalized_potential_db_calls_2010-2023_facetwrap.png", plot = graph,
        width = 10, height = 7, units = "in")
