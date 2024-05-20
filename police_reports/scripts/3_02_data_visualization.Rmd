@@ -1,0 +1,96 @@
+---
+title: "Data Visualization"
+author: "Aspen Coyle"
+date: "2024-05-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script visualizes the data cleaned in the previous script
+
+#### Load libraries, and install if necessary
+
+```{r}
+# Add all required libraries here
+list.of.packages <- c("tidyverse", "lubridate", "viridisLite", "plotly")
+# Get names of all required packages that aren't installed
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+# Install all new packages
+if(length(new.packages)) install.packages(new.packages)
+
+
+# Load all required libraries
+lapply(list.of.packages, FUN = function(X) {
+  do.call("require", list(X))
+})
+```
+
+
+# Visualizations
+
+```{r}
+# Read in data
+madrona_call_dat <- read.csv(file = "../output/potential_madrona_calls_2010-2023.csv")
+
+# Create new Year column
+madrona_call_dat$Year <- isoyear(madrona_call_dat$Incident.Date)
+
+# Remove all data from the year 2024, as it's only just beginning :)
+madrona_call_dat <- madrona_call_dat %>%
+  filter(Year != 2024)
+
+# Create line plot of broad call type vs. year
+
+# Mutate data
+graph_dat <- madrona_call_dat %>%
+  group_by(broad_category, Year, .drop = FALSE) %>%
+  summarise(n = length(broad_category))
+
+# Convert to tibble
+graph_dat <- as_tibble(graph_dat)
+
+# Add in zeros
+graph_dat <- graph_dat %>% 
+  complete(broad_category, Year, fill = list(n = 0))
+
+# Create graph
+graph <- graph_dat %>%
+  ggplot(aes(x = Year, y = n, group = broad_category, color = broad_category)) +
+  geom_line(size = 1) +
+  ylim(0, NA) +
+  labs(y = "Number of Calls", col = "Call Type") +
+  ggtitle("Calls to SPD Potentially Related to Madrona Beach")
+  
+# Save graph
+ggsave(filename = "../graphs/MadronaBeach/potential_madrona_calls_2010-2023_linegraph.png", plot = graph,
+       width = 10, height = 7, units = "in")
+
+# Create string of labels
+labels <- c(
+  disturbance = "Disturbance", 
+  drug = "Drug-Related", 
+  lewd = "Lewd Conduct", 
+  prop.dmg = "Property Damage", 
+  suspicious = "Suspicious Behavior", 
+  theft = "Theft", 
+  traffic = "Parking and Traffic", 
+  violence = "Violence")
+
+graph <- graph_dat %>%
+  ggplot(aes(x = Year, y = n, fill = broad_category)) +
+  geom_area() +
+  scale_fill_viridis_d() +
+  theme(legend.position = "none", 
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)) +
+  facet_wrap(~broad_category, scales = "fixed", labeller = labeller(broad_category = labels)) +
+  ggtitle("Calls to SPD Potentially Related to Madrona Beach (2010-2023)") +
+  ylab("Number of Calls")
+
+ggsave(filename = "../graphs/MadronaBeach/potential_madrona_calls_2010-2023_facetwrap.png", plot = graph,
+       width = 10, height = 7, units = "in")
+  
+```

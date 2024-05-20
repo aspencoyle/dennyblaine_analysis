@@ -15,7 +15,7 @@ This script visualizes the data cleaned in the previous script
 
 ```{r}
 # Add all required libraries here
-list.of.packages <- c("tidyverse", "lubridate")
+list.of.packages <- c("tidyverse", "lubridate", "viridisLite", "plotly")
 # Get names of all required packages that aren't installed
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
 # Install all new packages
@@ -38,6 +38,10 @@ db_call_dat <- read.csv(file = "../output/potential_db_calls_2010-2023.csv")
 # Create new Year column
 db_call_dat$Year <- isoyear(db_call_dat$Incident.Date)
 
+# Remove all data from the year 2024, as it's only just beginning :)
+db_call_dat <- db_call_dat %>%
+  filter(Year != 2024)
+
 # Create line plot of broad call type vs. year
 
 # Mutate data
@@ -52,25 +56,107 @@ graph_dat <- as_tibble(graph_dat)
 graph_dat <- graph_dat %>% 
   complete(broad_category, Year, fill = list(n = 0))
 
+# Rename columns
+
+
 # Create graph
-graph_dat %>%
+graph <- graph_dat %>%
   ggplot(aes(x = Year, y = n, group = broad_category, color = broad_category)) +
   geom_line(size = 1) +
-  ylim(0, 8) +
+  ylim(0, 40) +
   labs(y = "Number of Calls", col = "Call Type") +
-  scale_color_discrete(labels = c("Disturbance", "Drugs", "Lewd Conduct", "Property Damage", "Suspicious Person", "Traffic and Parking")) +
   ggtitle("Calls to SPD Potentially Related to Denny-Blaine")
   
 # Save graph
-ggsave(filename = "../graphs/potential_DB_calls.png", plot = last_plot(),
+ggsave(filename = "../graphs/DennyBlaine/potential_DB_calls_2010-2023_linegraph.png", plot = graph,
        width = 10, height = 7, units = "in")
 
-graph_dat %>%
-  ggplot(aes(fill = broad_category, y = n, x = Year)) +
-  geom_bar(position = "dodge", stat = "identity")
+# Create string of labels
+labels <- c(
+  disturbance = "Disturbance", 
+  drug = "Drug-Related", 
+  lewd = "Lewd Conduct", 
+  prop.dmg = "Property Damage", 
+  suspicious = "Suspicious Behavior", 
+  theft = "Theft", 
+  traffic = "Parking and Traffic", 
+  violence = "Violence")
 
-ggplot(data, aes(fill=condition, y=value, x=specie)) + 
-    geom_bar(position="dodge", stat="identity")
+graph <- graph_dat %>%
+  ggplot(aes(x = Year, y = n, fill = broad_category)) +
+  geom_area() +
+  scale_fill_viridis_d() +
+  theme(legend.position = "none", 
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)) +
+  facet_wrap(~broad_category, scales = "fixed", labeller = labeller(broad_category = labels)) +
+  ggtitle("Calls to SPD Potentially Related to Denny-Blaine (2010-2023)") +
+  ylab("Number of Calls")
 
+ggsave(filename = "../graphs/DennyBlaine/potential_db_calls_2010-2023_facetwrap.png", plot = graph,
+       width = 10, height = 7, units = "in")
+  
+```
+
+# Visualizing More Niche Calls
+
+Alright, now it's time to look into specific calls relating to violations of the following municipal codes.
+These are all named on the Denny Blaine for All website:
+
+- 18.12.080: Animals running at large prohibited
+- 18.12.145: Urinating or defecating prohibited except in restrooms
+- 18.12.255: Liquor offenses
+- 18.12.257: Unlawful possession of liquor in a public park
+- 18.12.260: Littering
+
+The other violations mentioned in the text on their website are either already captured (use of driveways and boulevards = traffic and parking), or can't really be examined with these data (general park operating hours, trespass in park)
+
+
+```{r}
+# ANIMALS
+
+# Search df for rows containing the string "animal", create new column with a 1 if it has the string, a 0 if not
+db_call_dat$Animals <- apply(db_call_dat, 1, function(x)as.integer(any(grep("animal", x, ignore.case = TRUE))))
+
+# Number of animal-related incidents for all years
+sum(db_call_dat$Animals)
+
+# There's 5 the whole time! That's not worth graphing
+
+# URINATING AND DEFECATING
+
+# Search DF for rows containing the string "urin"
+db_call_dat$Urine <- apply(db_call_dat, 1, function(x)as.integer(any(grep("urin", x, ignore.case = TRUE))))
+
+# Number of urination and defecation incidents for all years
+sum(db_call_dat$Urine)
+
+# There's none!
+
+# LIQUOR-RELATED OFFENSES
+
+# Search DF for rows containing the string "liquor"
+db_call_dat$Liquor <- apply(db_call_dat, 1, function(x)as.integer(any(grep("liquor", x, ignore.case = TRUE))))
+
+# Number of offenses
+sum(db_call_dat$Liquor)
+
+# 11 total
+
+# LITTER-RELATED OFFENSES
+
+# Search DF for rows containing the string "litter"
+db_call_dat$litter <- apply(db_call_dat, 1, function(x)as.integer(any(grep("litter", x, ignore.case = TRUE))))
+
+# Number of offenses
+sum(db_call_dat$litter)
+
+# 0 total
 
 ```
+Summary of calls made from 2010-2023: 
+- Animal-related incidents: 5
+- Urination and defecation: 0
+- Liquor use and intoxication: 11
+- Littering: 0
+

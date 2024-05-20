@@ -1,0 +1,349 @@
+---
+title: "data_cleaning"
+author: "Aspen Coyle"
+date: "2024-05-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Info
+
+This script cleans and organizes police data on reports from Denny-Blaine and other beaches, with the goal of examining police response frequency over time
+
+#### Load libraries, and install if necessary
+
+```{r}
+# Add all required libraries here
+list.of.packages <- c("tidyverse", "lubridate")
+# Get names of all required packages that aren't installed
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[, "Package"])]
+# Install all new packages
+if(length(new.packages)) install.packages(new.packages)
+
+
+# Load all required libraries
+lapply(list.of.packages, FUN = function(X) {
+  do.call("require", list(X))
+})
+
+```
+
+
+# Download data, remove unnecessary columns
+
+Data was downloaded from the SPD public call data page, available at https://data.seattle.gov/Public-Safety/Call-Data/33kz-ixgy
+
+Downloaded all available data from East precinct, Charlie sector on 2024-05-18
+
+
+
+
+```{r}
+# Read in data
+db_call_dat <- read.csv("../data/db_call_data_2010-2023.csv")
+
+# Woof, 237,000 rows! 
+
+# Let's narrow it down some, and only select those calls with a blurred lat/long within a quarter mile of Denny Blaine
+# North boundary: 47.623689
+# South boundary: 47.616472
+# East boundary: -122.274502
+# West boundary: -122.285688
+
+# Filter by location
+db_call_dat <- db_call_dat %>%
+  dplyr::filter(Blurred_Latitude < 47.623689 & Blurred_Latitude > 47.616472) %>%    # north/south
+  dplyr::filter(Blurred_Longitude < -122.274502 & Blurred_Longitude > -122.285688)  # east/west 
+
+
+# Dropping unnecessary columns
+# Precinct: all are East, safe to drop
+# Sector: all are Charlie, safe to drop
+# Beat: let's check
+table(db_call_dat$Beat)
+# All are C3. Regardless, safe to drop
+
+# Can also drop Arrived Time (as non-arrived calls are blank, and we care about the date of the call over a long timeframe, not the response time)
+
+db_call_dat <- db_call_dat %>%
+  select(-c("Precinct", "Sector", "Beat", "Arrived.Time"))
+```
+
+# Explore and clean data
+
+```{r}
+# A small thing I noticed, there's a fair amount of untidy data, especially in the Final.Call.Type column.
+# Using untidy data, SPD! For shame!!! 
+# Let's clean that up a touch so R doesn't stumble
+db_call_dat$Final.Call.Type <- str_remove(db_call_dat$Final.Call.Type, "--")
+
+
+# Look at different reasons calls were made
+table(db_call_dat$Initial.Call.Type)
+
+# Alright, lots of these are non-applicable to any disorder or misconduct at Denny-Blaine.
+# Let's remove all such non-applicable entries
+
+# Remove rows with the following response types
+db_call_dat <- db_call_dat %>%
+  filter(Initial.Call.Type != "-ASSIGNED DUTY - FOOT BEAT (FROM ASSIGNED CAR)") %>%    # patrol
+  filter(Initial.Call.Type != "ALARM - COMM, HOLD-UP/PANIC (EXCEPT BANKS)") %>%        # burglary
+  filter(Initial.Call.Type != "ALARM - COMM, SILENT/AUD BURG (INCL BANKS)") %>%        # burglary
+  filter(Initial.Call.Type != "ALARM - DURESS/PANIC,BUS/TAXI/CAR/PRSN - NOT DV") %>%   # burglary (one instance, checked)
+  filter(Initial.Call.Type != "ALARM - RESIDENTIAL - BURGLARY, SILENT/AUDIBLE") %>%    # burglary
+  filter(Initial.Call.Type != "ALARM - RESIDENTIAL - SILENT/AUD PANIC/DURESS") %>%     # burglary
+  filter(Initial.Call.Type != "ASLT - DV CRITICAL") %>%                                # domestic violence
+  filter(Initial.Call.Type != "ASSIST OTHER AGENCY - ROUTINE SERVICE") %>%             # assist other agency
+  filter(Initial.Call.Type != "ASSIST PUBLIC - NO WELFARE CHK OR DV ORDER SERVICE") %>%# assist public
+  filter(Initial.Call.Type != "ASSIST SPD") %>%                                        # assist SPD
+  filter(Initial.Call.Type != "AUTO RECOVERY") %>%                                     # auto recovery
+  filter(Initial.Call.Type != "BURG - COMM BURGLARY") %>%                              # burglary
+  filter(Initial.Call.Type != "BURG - OCCUPIED RESD") %>%                              # burglary
+  filter(Initial.Call.Type != "BURG - RESD (INCL UNOCC STRUCTURES ON PROP)") %>%       # burglary
+  filter(Initial.Call.Type != "CHILD - ABAND, ABUSE, MOLEST, NEGLECT") %>%             # child abuse
+  filter(Initial.Call.Type != "CHILD - CRITICAL ABAND, ABUSE, MOLEST, NEGLECT") %>%    # child abuse
+  filter(Initial.Call.Type != "DISTURBANCE - DV - NO ASLT") %>%                        # domestic violence
+  filter(Initial.Call.Type != "DISTURBANCE - DV CRITICAL") %>%                         # domestic violence
+  filter(Initial.Call.Type != "DOWN - CHECK FOR DOWN PERSON") %>%                      # welfare check
+  filter(Initial.Call.Type != "DUI - DRIVING UNDER INFLUENCE") %>%                     # DUI
+  filter(Initial.Call.Type != "FOLLOW UP") %>%                                         # follow up
+  filter(Initial.Call.Type != "FOUND PERSON") %>%                                      # found person
+  filter(Initial.Call.Type != "FRAUD") %>%                                             # fraud
+  filter(Initial.Call.Type != "HARBOR - WATER DEBRIS, NAVIGATIONAL HAZARDS") %>%       # water hazard
+  filter(Initial.Call.Type != "HARBOR - WATER EMERGENCIES") %>%                        # water emergencies
+  filter(Initial.Call.Type != "HARBOR - WATER NON-EMERGENCIES") %>%                    # water non-emergencies
+  filter(Initial.Call.Type != "INFORMATIONAL BROADCASTS") %>%                          # informational broadcasts
+  filter(Initial.Call.Type != "JUVENILE - RUNAWAY") %>%                                # juvenile runaway
+  filter(Initial.Call.Type != "JUVENILE - RUNAWAY PICKUP") %>%                         # runaway found
+  filter(Initial.Call.Type != "MISSING - ADULT") %>%                                   # adult missing
+  filter(Initial.Call.Type != "MISSING - CHILD") %>%                                   # child missing
+  filter(Initial.Call.Type != "MVC - HIT AND RUN") %>%                                 # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - ACC - UNK INJURIES") %>%                          # checked, all traffic accidents
+  filter(Initial.Call.Type != "OBS - ACC - WITH INJURIES (INCLUDES HIT AND RUN)") %>%  # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - BURG - IP/JO - COMM BURG (INCLUDES SCHOOLS)") %>% # burglary
+  filter(Initial.Call.Type != "OBS - DOWN - CHECK FOR PERSON DOWN") %>%                # welfare check
+  filter(Initial.Call.Type != "OBS - HIT AND RUN (NO INJURIES). INCLUDES IP/JO") %>%   # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - INJURED - IP/JO - PERSON/INDUSTRIAL ACCIDENT") %>%# accident
+  filter(Initial.Call.Type != "OBS - MVC - NON INJURY, BLOCKING") %>%                  # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - MVC - UNK INJURIES") %>%                          # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - MVC - WITH INJURIES (INCLUDES HIT AND RUN)") %>%  # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - NON INJURY, BLOCKING") %>%                       # checked, all MVCs
+  filter(Initial.Call.Type != "OBS - REPORT, NON INJ/NON BLKG OR AFTER FACT INJ") %>%  # motor vehicle collision
+  filter(Initial.Call.Type != "OBS - SECONDARY - FORGERY/BUNCO/SCAMS/ID THEFT") %>%    # fraud
+  filter(Initial.Call.Type != "OBS - TRU - ACC - HIT AND RUN") %>%                     # motor vehicle collision
+  filter(Initial.Call.Type != "OPEN - BUILDING, DOOR, ETC.") %>%                       # open building
+  filter(Initial.Call.Type != "ORDER - CRITICAL VIOLATION OF DV COURT ORDER") %>%      # court order violation
+  filter(Initial.Call.Type != "ORDER - VIOLATING DV COURT ORDER") %>%                  # court order violation
+  filter(Initial.Call.Type != "ORDER - VIOLATION OF COURT ORDER (NON DV)") %>%         # court order violation
+  filter(Initial.Call.Type != "ORDER  - SERVICE OF DV COURT ORDER") %>%                # service of court order
+  filter(Initial.Call.Type != "PEACE-STANDBY TO ASSURE (NO COURT ORDR SVC)") %>%       # checked, public assistance and DV
+  filter(Initial.Call.Type != "POWER OUT - POLES AND TRANSFORMERS") %>%                # power outage
+  filter(Initial.Call.Type != "PREDICTIVE POLICING") %>%                               # predictive policing
+  filter(Initial.Call.Type != "PROPERTY - FOUND") %>%                                  # found property
+  filter(Initial.Call.Type != "PROPERTY - FOUND GUN, SHELLCASINGS") %>%                # found property
+  filter(Initial.Call.Type != "SERVICE - WELFARE CHECK") %>%                           # welfare check
+  filter(Initial.Call.Type != "SFD - ASSIST ON CRITICAL FIRE OR MEDIC RESPONSE") %>%   # assisting fire or medics
+  filter(Initial.Call.Type != "SUICIDE - CRITICAL") %>%                                # suicide
+  filter(Initial.Call.Type != "SUICIDE - SUICIDAL PERSON AND ATTEMPTS") %>%            # suicide
+  filter(Initial.Call.Type != "THEFT OF SERVICES") %>%                                 # theft of services
+  filter(Initial.Call.Type != "TRAF - ELUDING POLICE") %>%                             # eluding police
+  filter(Initial.Call.Type != "TRAFFIC - ASSIST MOTORIST") %>%                         # assisting motorist
+  filter(Initial.Call.Type != "TRAFFIC - BO SIGNALS AND DOWN SIGNS") %>%               # traffic signals down
+  filter(Initial.Call.Type != "TRAFFIC - MOVING VIOLATION") %>%                        # moving violation
+  filter(Initial.Call.Type != "TRAFFIC - ROAD RAGE") %>%                               # road rage
+  filter(Initial.Call.Type != "TRAFFIC STOP - OFFICER INITIATED ONVIEW") %>%           # traffic stop
+  filter(Initial.Call.Type != "TREES DOWN, OBSTRUCTING PUBLIC PROP (NO HAZ)") %>%      # downed trees
+  filter(Initial.Call.Type != "TRU - FOLLOW UP") %>%                                   # follow up
+  filter(Initial.Call.Type != "TRU - FRAUD") %>%                                       # fraud
+  filter(Initial.Call.Type != "TRU - MVC - HIT AND RUN") %>%                           # motor vehicle collision
+  filter(Initial.Call.Type != "WATER FLOODS (BROKEN MAINS/HYDRANTS, NO HAZ)")          # water floods
+
+
+
+# Alright, we've got some reports that could potentially have something vaguely to do with DB, at least according to the initial report! Let's look at the final call reports to see if we can rule anything out
+
+table(db_call_dat$Final.Call.Type)
+
+# Remove ones that can't be DB
+db_call_dat <- db_call_dat %>%
+  filter(Final.Call.Type != "ALARM-COMM (INC BANK, ATM, SCHOOLS, BSN)") %>%              # burglary
+  filter(Final.Call.Type != "ALARM-RESIDENTIAL BURG") %>%                                # burglary
+  filter(Final.Call.Type != "ALARM-RESIDENTIAL PANIC OR DURESS") %>%                     # residential assistance
+  filter(Final.Call.Type != "AUTOMOBILES - RECOVERY (THEFT)") %>%                        # recovered car
+  filter(Final.Call.Type != "BURGLARY - RESIDENTIAL OCCUPIED") %>%                       # burglary
+  filter(Final.Call.Type != "BURGLARY - RESIDENTIAL, UNOCCUPIED") %>%                    # burglary
+  filter(Final.Call.Type != "BURGLARY - UNOCC STRUC ON RESN PROP") %>%                   # burglary
+  filter(Final.Call.Type != "CASUALTY,NON-TRAF,NON-CRIM - NON-DRUG RELATED") %>%         # non-drug-related casualty
+  filter(Final.Call.Type != "DIRECTED PATROL ACTIVITY") %>%                              # patrol
+  filter(Final.Call.Type != "DISTURBANCE - NOISE RESIDENTIAL") %>%                       # residential noise
+  filter(Final.Call.Type != "DV - ARGUMENTS, DISTURBANCE (NO ARREST)") %>%               # domestic violence
+  filter(Final.Call.Type != "DV - DOMESTIC THREATS BY PHONE OR WRITING") %>%             # domestic violence
+  filter(Final.Call.Type != "DV - DOMESTIC VIOL/ASLT (ARREST MANDATORY)") %>%            # domestic violence
+  filter(Final.Call.Type != "FRAUD - FRAUD, INCLUDING BUNCO") %>%                        # fraud
+  filter(Final.Call.Type != "HARBOR - WATER EMERGENCIES") %>%                            # water emergency
+  filter(Final.Call.Type != "HAZARDS - HAZARDS") %>%                                     # general hazard
+  filter(Final.Call.Type != "HELP THE OFFICER -ASSIST THE OFFICER (NON EMERG)") %>%      # assisting officer
+  filter(Final.Call.Type != "OBS - DOA - CASUALTY, DEAD BODY") %>%                       # dead body
+  filter(Final.Call.Type != "PERSON - RUNAWAY") %>%                                      # runaway
+  filter(Final.Call.Type != "PREDICTIVE POLICING PATROL") %>%                            # predictive policing
+  filter(Final.Call.Type != "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY") %>%          # premise check
+  filter(Final.Call.Type != "PREMISE CHECKS - BUSINESS CHECK") %>%                       # premise check
+  filter(Final.Call.Type != "PREMISE CHECKS - HOMELESS ENCAMPMENT") %>%                  # premise check
+  filter(Final.Call.Type != "PREMISE CHECKS - REQUEST TO WATCH") %>%                     # premise check
+  filter(Final.Call.Type != "SUSPICIOUS CIRCUM. - BUILDING (OPEN DOOR, ETC)") %>%        # building 
+  filter(Final.Call.Type != "SUSPICIOUS CIRCUM. - SUSPICIOUS VEHICLE") %>%               # suspicious vehicle
+  filter(Final.Call.Type != "THEFT - SHOPLIFT") %>%                                      # shoplifting
+  filter(Final.Call.Type != "TRAFFIC - D.U.I") %>%                                       # DUI
+  filter(Final.Call.Type != "TRAFFIC - MOVING VIOLATION") %>%                            # moving violation
+  filter(Final.Call.Type != "TRAFFIC - MV COLLISION INVESTIGATION") %>%                  # motor vehicle collision
+  filter(Final.Call.Type != "WARRANT SERVICES - MISDEMEANOR")                            # warrant services
+
+# Let's also do a quick check of event resolution
+
+table(db_call_dat$Event.Clearance.Description)
+
+# Remove false report
+db_call_dat <- db_call_dat %>%
+  filter(Final.Call.Type != "FALSE COMPLAINT/UNFOUNDED")
+
+# Alright, 1300-odd rows. Let's go back through, this time removing combinations that don't work
+db_call_dat <- db_call_dat %>%
+  filter(Initial.Call.Type != "DIRECTED PATROL ACTIVITY" | Final.Call.Type != "PREMISE CHECKS - CRIME PREVENTION") %>%                 # checking premises
+  filter(Initial.Call.Type != "DISTURBANCE" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)") %>%                          # public assistance
+  filter(Initial.Call.Type != "HAZ - POTENTIAL THRT TO PHYS SAFETY" | Final.Call.Type != "ASSIST OTHER AGENCY - CITY AGENCY") %>%      # assisting agency
+  filter(Initial.Call.Type != "HAZ - POTENTIAL THRT TO PHYS SAFETY" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)") %>%  # public assistance
+  filter(Initial.Call.Type != "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY" | Final.Call.Type != "ASSIST OTHER AGENCY - CITY AGENCY") %>%     # assisting agency
+  filter(Initial.Call.Type != "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)") %>% # assisting agency
+  filter(Initial.Call.Type != "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY" | Final.Call.Type != "PREMISE CHECKS - CRIME PREVENTION") %>%     # premise checks
+  filter(Initial.Call.Type != "REQUEST TO WATCH" | Final.Call.Type != "PREMISE CHECKS - CRIME PREVENTION") %>%                                 # premise checks
+  filter(Initial.Call.Type != "SERVICE - WELFARE CHECK" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)") %>%                      # welfare check
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - LANDLINE (INCLUDES OPEN LINE)" | Final.Call.Type != "ASSIST OTHER AGENCY - CITY AGENCY") %>%# assisting agency
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - LANDLINE (INCLUDES OPEN LINE)" | Final.Call.Type != "ASSIST PUBLIC - 911 HANG UP, OPEN LINE") %>%  # 911 hangup
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - LANDLINE (INCLUDES OPEN LINE)" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)") %>% # assisting public
+  filter(Initial.Call.Type != "UNKNOWN - ANI/ALI - WRLS PHNS (INCL OPEN LINE)" | Final.Call.Type != "ASSIST OTHER AGENCY - CITY AGENCY") %>%   # assisting agency
+  filter(Initial.Call.Type != "UNKNOWN - COMPLAINT OF UNKNOWN NATURE" | Final.Call.Type != "ASSIST OTHER AGENCY - CITY AGENCY") %>%            # assisting agency
+  filter(Initial.Call.Type != "UNKNOWN - COMPLAINT OF UNKNOWN NATURE" | Final.Call.Type != "ASSIST PUBLIC - OTHER (NON-SPECIFIED)")            # assisting public
+```
+
+Cool, we've got a list of incidents that could have potentially been at DB
+
+Let's sort these into a few neater categories (abbreviations in parentheses):
+- Disturbance
+- Drugs
+- Lewd conduct (lewd)
+- Property damage/theft (prop.dmg)
+- Suspicious people (suspicious)
+- Violence
+# Organizing into broad categories
+
+```{r}
+# Add new column, fill with NAs
+db_call_dat$broad_category <- NA
+
+# We'll do this in base R - sorry, I just prefer this way!
+
+# do based on initial call type. This is potentially flawed, as assumes initial call was accurate representation of situation, which is often VERY not true. If anything, this dramatically errs on the high side
+table(db_call_dat$Initial.Call.Type)
+
+# Start assigning
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ALARM - DURESS/PANIC,TAXI/CAR/PRSN - NOT DV"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ANIMAL - INJURED, DEAD HAZARD, OTHER"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ASLT - CRITICAL (NO SHOOTINGS)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ASLT - REPORT FOR PERSON SHOT OR SHOT AT"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ASLT - WITH OR W/O WPNS (NO SHOOTINGS)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "AUTO - THEFT/LOSS OF PLATES"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "AUTO THEFT - VEH THEFT OR THEFT AND RECOVERY"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "BIAS"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "BURN - RECKLESS BURNING"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "DIRECTED PATROL ACTIVITY"] <- "disturbance" # one entry, was liquor viol
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "DISTURBANCE"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "EXPLOSION"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "FIGHT - CRITICAL WITH WEAPONS"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "FIGHT - PHYSICAL (NO WEAPONS)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "FIREWORKS (NO HAZARD)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "HARAS - NO BIAS OR THREATS"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "HAZ - POTENTIAL THRT TO PHYS SAFETY"] <- "suspicious"   # checked this
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ILLEGAL DUMPING"] <- "prop.dmg"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "LEWD -  (EXPOSING, FLASHING)"] <- "lewd"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "LIQUOR VIOLATIONS - ADULT"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "LIQUOR VIOLATIONS - MINOR"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "NARCOTICS - VIOLATIONS (LOITER, USE, SELL, NARS)"] <- "drug"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "NOISE - ANIMAL (INCLUDES BARKING DOGS)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "NOISE - GENERAL"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "NUISANCE"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - ANIMAL - IP/JO - BITE"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - ARSON - IP/JO"] <- "prop.dmg"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - DOA - CASUALTY, DEAD BODY"] <- "drug"      # was OD
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - EXPLOSION - IP/JO"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - FIGHT - IP - PHYSICAL (NO WEAPONS)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - FIGHT - VERBAL/ORAL (NO WEAPONS)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - MENTAL - PERSON OR PICKUP/TRANSPORT"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - NOISE - DISTURBANCE (PARTY, ETC)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - PROWLER"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - PROWLER - IP/JO"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - SECONDARY - PROPERTY DAMAGE/DESTRUCTION"] <- "prop.dmg"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS - SECONDARY - THEFT"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OBS WEAPN-IP/JO-GUN,DEADLY WPN (NO THRT/ASLT/DIST)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "OVERDOSE"] <- "drug"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PARKING VIOLATION (EXCEPT ABANDONED CAR)"] <- "traffic"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PARKS VIOLATIONS/CITES (INCLUDES EXCLUSIONS)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PERSON IN BEHAVIORAL/EMOTIONAL CRISIS"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PREMISE CHECK, OFFICER INITIATED ONVIEW ONLY"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PROPERTY - DAMAGE"] <- "prop.dmg"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "PROPERTY - DAMAGE (GUN RELATED)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "REQUEST TO WATCH"] <- "suspicious"  # manually checked
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ROBBERY - CRITICAL (INCLUDES STRONG ARM)"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "ROBBERY (INCL STRONG ARM)"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "SEX IN PUBLIC PLACE (INCL MASTURBATION)"] <- "lewd"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "SHOTS HEARD - DELAY"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "SHOTS HEARD - IN PROGRESS"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "SUSPICIOUS PERSON, VEHICLE, OR INCIDENT"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "SUSPICIOUS STOP - OFFICER INITIATED ONVIEW"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "THEFT (DOES NOT INCLUDE SHOPLIFT OR SVCS)"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "THREATS (INCLS IN-PERSON/BY PHONE/IN WRITING)"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRAFFIC - BLOCKING ROADWAY"] <- "traffic"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRESPASS"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - ASLT - MOLESTED ADULT (GROPED, FONDLED, ETC)"] <- "violence"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - DISTURBANCE"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - HARASSMENT"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - PROPERTY DESTRUCTION/DAMAGE"] <- "prop.dmg"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - SEX IN PUBLIC"] <- "lewd"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - SUSPICIOUS CIRCUMSTANCES"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "TRU - THEFT"] <- "theft"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "UNKNOWN - ANI/ALI - LANDLINE (INCLUDES OPEN LINE)"] <- "suspicious"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "UNKNOWN - COMPLAINT OF UNKNOWN NATURE"] <- "disturbance"
+db_call_dat$broad_category[db_call_dat$Initial.Call.Type == "WEAPN - GUN,DEADLY WPN (NO THRTS/ASLT/DIST)"] <- "violence"
+
+# Make sure we had minimal typos
+table(db_call_dat$broad_category)
+```
+
+Nice, now we've got a slick clean (and TIDY, please take notes SPD!) dataframe. Now let's pull out the year from the date/time info!
+
+```{r}
+# Let's split the time/date string and just select the date
+db_call_dat$Original.Time.Queued <- str_split_i(db_call_dat$Original.Time.Queued, " ", 1)
+
+# Rename column
+db_call_dat <- db_call_dat %>%
+  rename(Incident.Date = Original.Time.Queued)
+
+# Check column type
+str(db_call_dat$Incident.Date)
+# Yep it's a character string
+
+# Transform into Date object type
+db_call_dat$Incident.Date <- mdy(db_call_dat$Incident.Date)
+# Check it worked
+str(db_call_dat$Incident.Date)
+
+# Write everything out
+write.csv(db_call_dat, file = "../output/potential_db_calls_2010-2023.csv", row.names = FALSE)
+```
+Alright, next step: creating visualizations looking at trends by year!
+
+
+

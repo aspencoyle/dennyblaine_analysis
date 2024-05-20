@@ -51,7 +51,7 @@ graph_dat <- graph_dat %>%
   complete(broad_category, Year, fill = list(n = 0))
 
 # Create graph
-graph_dat %>%
+graph <- graph_dat %>%
   ggplot(aes(x = Year, y = n, group = broad_category, color = broad_category)) +
   geom_line(size = 1) +
   ylim(0, 8) +
@@ -60,15 +60,13 @@ graph_dat %>%
   ggtitle("Calls to SPD Potentially Related to Denny-Blaine")
   
 # Save graph
-ggsave(filename = "../graphs/potential_DB_calls.png", plot = last_plot(),
+ggsave(filename = "../graphs/DennyBlaine/potential_DB_calls.png", plot = graph,
        width = 10, height = 7, units = "in")
 
 graph_dat %>%
   ggplot(aes(fill = broad_category, y = n, x = Year)) +
   geom_bar(position = "dodge", stat = "identity")
 
-ggplot(data, aes(fill=condition, y=value, x=specie)) + 
-    geom_bar(position="dodge", stat="identity")
 
 
 ```
