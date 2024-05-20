@@ -33,19 +33,20 @@ lapply(list.of.packages, FUN = function(X) {
 
 ```{r}
 # Read in data
-madrona_call_dat <- read.csv(file = "../output/potential_madrona_calls_2010-2023.csv")
+mad_beach_call_dat <- read.csv(file = "../output/potential_mad_beach_calls_2010-2023.csv")
+seattle_pop <- read.csv(file = "../data/seattle_pop_data_2010-2023.csv")
 
 # Create new Year column
-madrona_call_dat$Year <- isoyear(madrona_call_dat$Incident.Date)
+mad_beach_call_dat$Year <- isoyear(mad_beach_call_dat$Incident.Date)
 
 # Remove all data from the year 2024, as it's only just beginning :)
-madrona_call_dat <- madrona_call_dat %>%
+mad_beach_call_dat <- mad_beach_call_dat %>%
   filter(Year != 2024)
 
 # Create line plot of broad call type vs. year
 
 # Mutate data
-graph_dat <- madrona_call_dat %>%
+graph_dat <- mad_beach_call_dat %>%
   group_by(broad_category, Year, .drop = FALSE) %>%
   summarise(n = length(broad_category))
 
@@ -56,16 +57,29 @@ graph_dat <- as_tibble(graph_dat)
 graph_dat <- graph_dat %>% 
   complete(broad_category, Year, fill = list(n = 0))
 
+# Join population data
+graph_dat <- left_join(x = graph_dat, y = seattle_pop, by = "Year")
+
+# Change population to int
+graph_dat$Population <- as.integer(graph_dat$Population)
+
+# Calculate rate per 100,000 people
+graph_dat$n_rate <- (graph_dat$n/graph_dat$Population)*100000
+```
+
+# Create Graphs
+
+```{r}
 # Create graph
 graph <- graph_dat %>%
   ggplot(aes(x = Year, y = n, group = broad_category, color = broad_category)) +
   geom_line(size = 1) +
   ylim(0, NA) +
   labs(y = "Number of Calls", col = "Call Type") +
-  ggtitle("Calls to SPD Potentially Related to Madrona Beach")
+  ggtitle("Calls to SPD Potentially Related to Madison Beach")
   
 # Save graph
-ggsave(filename = "../graphs/MadronaBeach/potential_madrona_calls_2010-2023_linegraph.png", plot = graph,
+ggsave(filename = "../graphs/MadisonBeach/potential_madbeach_calls_2010-2023_linegraph.png", plot = graph,
        width = 10, height = 7, units = "in")
 
 # Create string of labels
@@ -79,6 +93,7 @@ labels <- c(
   traffic = "Parking and Traffic", 
   violence = "Violence")
 
+# Population Un-Normalized
 graph <- graph_dat %>%
   ggplot(aes(x = Year, y = n, fill = broad_category)) +
   geom_area() +
@@ -87,10 +102,25 @@ graph <- graph_dat %>%
         panel.spacing = unit(0.1, "lines"),
         strip.text.x = element_text(size = 8)) +
   facet_wrap(~broad_category, scales = "fixed", labeller = labeller(broad_category = labels)) +
-  ggtitle("Calls to SPD Potentially Related to Madrona Beach (2010-2023)") +
+  ggtitle("Calls to SPD Potentially Related to Madison Beach (2010-2023)") +
   ylab("Number of Calls")
 
-ggsave(filename = "../graphs/MadronaBeach/potential_madrona_calls_2010-2023_facetwrap.png", plot = graph,
+ggsave(filename = "../graphs/MadisonBeach/potential_madbeach_calls_2010-2023_facetwrap.png", plot = graph,
        width = 10, height = 7, units = "in")
   
+# Population-Normalized Calls
+graph <- graph_dat %>%
+  ggplot(aes(x = Year, y = n_rate, fill = broad_category)) +
+  geom_area() +
+  scale_fill_viridis_d() +
+  theme(legend.position = "none", 
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)) +
+  facet_wrap(~broad_category, scales = "fixed", labeller = labeller(broad_category = labels)) +
+  ggtitle("Calls to SPD Potentially Related to Madison Beach (2010-2023) Per 100,000 Seattle Residents") +
+  ylab("Number of Calls")
+
+ggsave(filename = "../graphs/MadisonBeach/pop_normalized_potential_madbeach_calls_2010-2023_facetwrap.png", plot = graph,
+       width = 10, height = 7, units = "in")
+
 ```
